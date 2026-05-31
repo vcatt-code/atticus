@@ -189,6 +189,19 @@
   .hist-kpi .val.pos{color:var(--pos)}.hist-kpi .val.neg{color:var(--neg)}
   .hist-kpi .sub2{font-size:11px;color:var(--muted-2);margin-top:6px;font-family:"IBM Plex Mono",monospace}
   @media(max-width:1000px){.hist-grid{grid-template-columns:1fr}}
+  .env-hist-wrap{overflow:auto;max-height:60vh;border:1px solid var(--line);border-radius:11px;margin-top:6px}
+  table.eh{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-content;min-width:100%}
+  table.eh tr{height:42px}
+  table.eh th,table.eh td{padding:0 14px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--line);vertical-align:middle;box-sizing:border-box}
+  table.eh thead th{position:sticky;top:0;z-index:3;background:var(--surface-3);font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--text);font-size:12px}
+  table.eh th.ehl,table.eh td.ehl{position:sticky;left:0;z-index:2;text-align:left;background:var(--surface);min-width:210px;max-width:210px;width:210px;box-shadow:1px 0 0 var(--line);font-weight:500}
+  table.eh thead th.ehl{z-index:4;background:var(--surface-3)}
+  table.eh td.ehv{font-family:"IBM Plex Mono",monospace;color:var(--text)}
+  table.eh td.ehv.z{color:var(--muted-2);opacity:.3}
+  table.eh tr.ehfam{height:34px}
+  table.eh tr.ehfam td{background:var(--surface-3);font-family:"Fraunces",serif;font-weight:600;font-size:12px}
+  table.eh tr.ehtot td{font-weight:700;border-top:2px solid var(--line-2);background:var(--surface-2)}
+  table.eh tr.ehtot.hl td{color:var(--gold)}
 
   /* Treemap */
   .treemap{position:relative;width:100%;height:380px;margin-top:6px}
@@ -420,6 +433,9 @@
             <div style="height:320px;position:relative"><canvas id="histChart"></canvas></div>
             <div class="hist-side" id="histSide"></div>
           </div>
+        </div>
+        <div class="card"><h3>Évolution par enveloppe</h3><div class="sub">Valeur nette de chaque enveloppe à chaque clôture · fais défiler horizontalement</div>
+          <div class="env-hist-wrap" id="envHistScroll"></div>
         </div>
       </section>
 
@@ -1044,6 +1060,61 @@ const snapByDate=d=>db.snapshots.find(s=>s.date===d);
 function renderHistorique(){
   drawHistoryChart();
   renderHistSide();
+  renderEnvHistory();
+}
+// valeur nette d'une enveloppe dans un snapshot donné
+function envNetAtSnap(e,s){
+  let v=0;for(const l of e.lines)if(s.lines&&s.lines[l.id]!=null)v+=(+s.lines[l.id]||0);
+  const d=(s.debts&&s.debts[e.id]!=null)?(+s.debts[e.id]||0):0;
+  return {brut:v,net:v-d,has:e.lines.some(l=>s.lines&&s.lines[l.id]!=null)};
+}
+function renderEnvHistory(){
+  const wrap=document.getElementById('envHistScroll');if(!wrap)return;
+  while(wrap.firstChild)wrap.removeChild(wrap.firstChild);
+  const months=db.snapshots.map(s=>s.date);
+  if(!months.length){const p=document.createElement('div');p.style.padding='16px';p.style.color='var(--muted-2)';p.textContent='Aucune clôture enregistrée.';wrap.appendChild(p);return;}
+  const snapOf={};db.snapshots.forEach(s=>snapOf[s.date]=s);
+  const typeIndex=id=>{const i=db.ref.envelopeTypes.findIndex(t=>t.id===id);return i<0?99:i;};
+
+  const table=document.createElement('table');table.className='eh';
+  // THEAD
+  const thead=document.createElement('thead');const htr=document.createElement('tr');
+  const h0=document.createElement('th');h0.className='ehl';h0.textContent='Enveloppe';htr.appendChild(h0);
+  for(const mo of months){const th=document.createElement('th');th.textContent=mo;htr.appendChild(th);}
+  thead.appendChild(htr);table.appendChild(thead);
+
+  // TBODY
+  const tbody=document.createElement('tbody');
+  const mkv=(txt,z)=>{const td=document.createElement('td');td.className='ehv'+(z?' z':'');td.textContent=txt;return td;};
+
+  for(const fam of FAMILY_ORDER){
+    const envs=db.envelopes.filter(e=>e.horizon===fam).sort((a,b)=>(typeIndex(a.typeId)-typeIndex(b.typeId))||(envNet(b)-envNet(a)));
+    // ne garder que les enveloppes ayant au moins une valeur non nulle dans l'historique
+    const rows=envs.filter(e=>months.some(mo=>{const s=snapOf[mo];if(!s)return false;const r=envNetAtSnap(e,s);return r.has&&r.net!==0;}));
+    if(!rows.length)continue;
+    // en-tête de famille
+    const ftr=document.createElement('tr');ftr.className='ehfam';
+    const fl=document.createElement('td');fl.className='ehl';fl.style.borderLeft='3px solid '+HORIZONS[fam].color;fl.textContent=HORIZONS[fam].label;ftr.appendChild(fl);
+    for(let i=0;i<months.length;i++)ftr.appendChild(document.createElement('td'));
+    tbody.appendChild(ftr);
+    for(const e of rows){
+      const tr=document.createElement('tr');
+      const lab=document.createElement('td');lab.className='ehl';lab.textContent=e.name;tr.appendChild(lab);
+      for(const mo of months){const s=snapOf[mo];const r=s?envNetAtSnap(e,s):null;
+        if(r&&r.has)tr.appendChild(mkv(fmtCell(r.net)));
+        else tr.appendChild(mkv('–',true));
+      }
+      tbody.appendChild(tr);
+    }
+  }
+  // total net par mois
+  const ttr=document.createElement('tr');ttr.className='ehtot hl';
+  const tl=document.createElement('td');tl.className='ehl';tl.textContent='TOTAL NET';ttr.appendChild(tl);
+  for(const mo of months){const s=snapOf[mo];const td=document.createElement('td');td.className='ehv';td.textContent=s?fmtCell(s.net):'';ttr.appendChild(td);}
+  tbody.appendChild(ttr);
+
+  table.appendChild(tbody);wrap.appendChild(table);
+  requestAnimationFrame(()=>{wrap.scrollLeft=wrap.scrollWidth;});
 }
 function snapFinancierNet(s){
   const rpLines=new Set();
@@ -1153,6 +1224,20 @@ document.getElementById('btnExportXlsx').onclick=()=>{
     h.push(['TOTAL NET','','','',...months.map(mo=>snapMap[mo]?snapMap[mo].net:'')]);
     h.push(['TOTAL NET HORS RP','','','',...months.map(mo=>snapMap[mo]?snapFinancierNet(snapMap[mo]):'')]);
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(h),'Historique');
+    // Onglet : évolution par enveloppe (valeur nette)
+    const typeIdx=id=>{const i=db.ref.envelopeTypes.findIndex(t=>t.id===id);return i<0?99:i;};
+    const eh=[['Enveloppe','Type','Famille',...months]];
+    for(const fam of FAMILY_ORDER){
+      const envs=db.envelopes.filter(e=>e.horizon===fam).sort((a,b)=>(typeIdx(a.typeId)-typeIdx(b.typeId))||(envNet(b)-envNet(a)));
+      for(const e of envs){
+        const cells=months.map(mo=>{const s=snapMap[mo];if(!s)return '';const r=envNetAtSnap(e,s);return r.has?Math.round(r.net):'';});
+        if(cells.every(c=>c===''||c===0))continue;
+        eh.push([e.name,etLabel(e.typeId),HORIZONS[e.horizon]?.label||'',...cells]);
+      }
+    }
+    eh.push([]);
+    eh.push(['TOTAL NET','','',...months.map(mo=>snapMap[mo]?snapMap[mo].net:'')]);
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(eh),'Histo enveloppes');
   }
   XLSX.writeFile(wb,'patrimoine.xlsx');toast('Export Excel');
 };
