@@ -190,13 +190,15 @@
   .hist-kpi .sub2{font-size:11px;color:var(--muted-2);margin-top:6px;font-family:"IBM Plex Mono",monospace}
   .hist-tbl-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:11px;position:relative}
   table.hist-matrix{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-content;min-width:100%}
-  table.hist-matrix th,table.hist-matrix td{padding:8px 13px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--line);vertical-align:middle;height:38px;box-sizing:border-box}
+  table.hist-matrix th,table.hist-matrix td{padding:6px 13px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--line);vertical-align:middle;box-sizing:border-box;line-height:1.25}
+  table.hist-matrix tbody td{height:44px}
   table.hist-matrix thead th{position:sticky;top:0;z-index:3;background:var(--surface-3);font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--text);font-size:12px}
   table.hist-matrix th.lblc,table.hist-matrix td.lblc{position:sticky;left:0;z-index:2;text-align:left;background:var(--surface);min-width:230px;max-width:230px;box-shadow:1px 0 0 var(--line)}
   table.hist-matrix thead th.lblc{z-index:4;background:var(--surface-3)}
   table.hist-matrix td.cellv{font-family:"IBM Plex Mono",monospace;color:var(--text)}
-  table.hist-matrix td.cellv.empty{color:var(--muted-2)}
-  table.hist-matrix .sub-env{display:block;font-size:10px;color:var(--muted-2);font-weight:400}
+  table.hist-matrix td.cellv.empty{color:var(--muted-2);opacity:.35}
+  table.hist-matrix td.lblc{line-height:1.15}
+  table.hist-matrix .sub-env{display:block;font-size:10px;color:var(--muted-2);font-weight:400;margin-top:1px}
   table.hist-matrix tr.tot td{font-weight:700;border-top:1px solid var(--line-2);background:var(--surface-2)}
   table.hist-matrix tr.tot td.lblc{background:var(--surface-2)}
   table.hist-matrix tr.tot.hl td{color:var(--gold)}
@@ -1081,7 +1083,7 @@ function renderHistorique(){
     const col=HORIZONS[fam].color;
     body+=`<tr class="fam-row"><td class="lblc" style="border-left:3px solid ${col}">${HORIZONS[fam].label}</td>`+months.map(()=>'<td></td>').join('')+`</tr>`;
     for(const {e,l} of famRows){
-      body+=`<tr><td class="lblc">${l.label||acLabel(l.assetClassId)}<span class="sub-env">${e.name}</span></td>`+months.map(mo=>{const s=snapByDate(mo),v=s&&s.lines?s.lines[l.id]:undefined;return `<td class="cellv${v!=null?'':' empty'}">${v!=null?fmtCell(v):'·'}</td>`;}).join('')+`</tr>`;
+      body+=`<tr><td class="lblc">${l.label||acLabel(l.assetClassId)}<span class="sub-env">${e.name}</span></td>`+months.map(mo=>{const s=snapByDate(mo),v=s&&s.lines?s.lines[l.id]:undefined;return `<td class="cellv${v!=null?'':' empty'}">${v!=null?fmtCell(v):'–'}</td>`;}).join('')+`</tr>`;
     }
   }
   body+=`<tr class="tot"><td class="lblc">TOTAL BRUT</td>`+months.map(mo=>{const s=snapByDate(mo);return `<td>${s?fmtCell(s.brut):''}</td>`;}).join('')+`</tr>`;
