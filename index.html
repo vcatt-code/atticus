@@ -1180,7 +1180,7 @@ document.getElementById('btnExportXlsx').onclick=()=>{
 function download(blob,name){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u);}
 
 /* ============ DRIVE ============ */
-const DRIVE_CONFIG={clientId:""264100909833-m9ufodvp3brtf1p4pgt1asfnhch46rcf.apps.googleusercontent.com"",scope:"https://www.googleapis.com/auth/drive.file",fileName:"patrimoine.json",folderName:"Atticus"};
+const DRIVE_CONFIG={clientId:"264100909833-m9ufodvp3brtf1p4pgt1asfnhch46rcf.apps.googleusercontent.com",scope:"https://www.googleapis.com/auth/drive.file",fileName:"patrimoine.json",folderName:"Atticus"};
 let driveFolderId=null;
 let driveToken=null,driveFileId=null;
 function driveClick(){if(!DRIVE_CONFIG.clientId)return showDriveSetup();if(driveConnected&&driveToken){driveSave(false);return;}(async()=>{try{if(!window.google?.accounts?.oauth2)await loadScript('https://accounts.google.com/gsi/client');google.accounts.oauth2.initTokenClient({client_id:DRIVE_CONFIG.clientId,scope:DRIVE_CONFIG.scope,callback:async resp=>{driveToken=resp.access_token;await driveSync();}}).requestAccessToken();}catch(e){toast('Erreur Drive');}})();}
