@@ -188,26 +188,6 @@
   .hist-kpi .val{font-family:"IBM Plex Mono",monospace;font-size:22px;font-weight:600}
   .hist-kpi .val.pos{color:var(--pos)}.hist-kpi .val.neg{color:var(--neg)}
   .hist-kpi .sub2{font-size:11px;color:var(--muted-2);margin-top:6px;font-family:"IBM Plex Mono",monospace}
-  .hist-tbl-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:11px;position:relative}
-  table.hist-matrix{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-content;min-width:100%;table-layout:auto}
-  table.hist-matrix tr{height:46px}
-  table.hist-matrix th,table.hist-matrix td{padding:0 13px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--line);vertical-align:middle;box-sizing:border-box;line-height:1.2}
-  table.hist-matrix thead th{position:sticky;top:0;z-index:3;background:var(--surface-3);font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--text);font-size:12px}
-  table.hist-matrix th.lblc,table.hist-matrix td.lblc{position:sticky;left:0;z-index:2;text-align:left;background:var(--surface);min-width:230px;max-width:230px;width:230px;box-shadow:1px 0 0 var(--line)}
-  table.hist-matrix thead th.lblc{z-index:4;background:var(--surface-3)}
-  table.hist-matrix td.cellv{font-family:"IBM Plex Mono",monospace;color:var(--text)}
-  table.hist-matrix td.cellv.empty{color:var(--muted-2);opacity:.3}
-  table.hist-matrix td.lblc .lbl-main{display:block;line-height:1.15;overflow:hidden;text-overflow:ellipsis}
-  table.hist-matrix .sub-env{display:block;font-size:10px;color:var(--muted-2);font-weight:400;line-height:1.1;overflow:hidden;text-overflow:ellipsis}
-  table.hist-matrix tr.tot td{font-weight:700;border-top:2px solid var(--line-2);background:var(--surface-2)}
-  table.hist-matrix tr.tot td.lblc{background:var(--surface-2)}
-  table.hist-matrix tr.tot.hl td{color:var(--gold)}
-  table.hist-matrix tr.deltarow td{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-style:italic;background:var(--surface-2)}
-  table.hist-matrix tr.deltarow td.lblc{background:var(--surface-2);font-style:normal}
-  table.hist-matrix tr.fam-row{height:36px}
-  table.hist-matrix tr.fam-row td{background:var(--surface-3);border-bottom:1px solid var(--line-2)}
-  table.hist-matrix tr.fam-row td.lblc{background:var(--surface-3);font-family:"Fraunces",serif;font-weight:600;font-size:12.5px;color:var(--text)}
-  .dpos{color:var(--pos)}.dneg{color:var(--neg)}
   @media(max-width:1000px){.hist-grid{grid-template-columns:1fr}}
 
   /* Treemap */
@@ -440,9 +420,6 @@
             <div style="height:320px;position:relative"><canvas id="histChart"></canvas></div>
             <div class="hist-side" id="histSide"></div>
           </div>
-        </div>
-        <div class="card"><h3>Détail par ligne et par mois</h3><div class="sub">Valeur de chaque position capturée à chaque clôture — fais défiler horizontalement</div>
-          <div class="hist-tbl-wrap" id="histScroll"><table class="hist-matrix" id="histMatrix"></table></div>
         </div>
       </section>
 
@@ -1067,103 +1044,6 @@ const snapByDate=d=>db.snapshots.find(s=>s.date===d);
 function renderHistorique(){
   drawHistoryChart();
   renderHistSide();
-  const table=document.getElementById('histMatrix');
-  const months=db.snapshots.map(s=>s.date);
-
-  // reset complet de la table
-  while(table.firstChild)table.removeChild(table.firstChild);
-
-  // cas vide
-  if(!months.length){
-    const tb=document.createElement('tbody');
-    const tr=document.createElement('tr');
-    const td=document.createElement('td');
-    td.className='lblc';td.style.padding='14px';
-    td.textContent='Aucune clôture enregistrée. Clôture un mois ou importe un CSV.';
-    tr.appendChild(td);tb.appendChild(tr);table.appendChild(tb);
-    return;
-  }
-
-  // helpers de création de cellules
-  const snapOf={};db.snapshots.forEach(s=>snapOf[s.date]=s);
-  const mkCell=(txt,cls)=>{const td=document.createElement('td');if(cls)td.className=cls;td.textContent=txt;return td;};
-  const mkLabel=(main,sub)=>{
-    const td=document.createElement('td');td.className='lblc';
-    const m=document.createElement('span');m.className='lbl-main';m.textContent=main;td.appendChild(m);
-    if(sub){const sp=document.createElement('span');sp.className='sub-env';sp.textContent=sub;td.appendChild(sp);}
-    return td;
-  };
-
-  // THEAD
-  const thead=document.createElement('thead');
-  const htr=document.createElement('tr');
-  const hlbl=document.createElement('th');hlbl.className='lblc';hlbl.textContent='Élément';htr.appendChild(hlbl);
-  for(const mo of months){const th=document.createElement('th');th.textContent=mo;htr.appendChild(th);}
-  thead.appendChild(htr);
-  table.appendChild(thead);
-
-  // TBODY
-  const tbody=document.createElement('tbody');
-  const typeIndex=id=>{const i=db.ref.envelopeTypes.findIndex(t=>t.id===id);return i<0?99:i;};
-  const lineHasData=l=>months.some(mo=>{const s=snapOf[mo];return s&&s.lines&&s.lines[l.id]!=null&&(+s.lines[l.id])!==0;});
-
-  // lignes par famille de liquidité
-  for(const fam of FAMILY_ORDER){
-    const envs=db.envelopes.filter(e=>e.horizon===fam)
-      .sort((a,b)=>(typeIndex(a.typeId)-typeIndex(b.typeId))||(envNet(b)-envNet(a)));
-    const rows=[];const seen=new Set();
-    for(const e of envs)for(const l of e.lines){
-      if(seen.has(l.id))continue;seen.add(l.id);
-      if(lineHasData(l))rows.push({e,l});
-    }
-    if(!rows.length)continue;
-
-    // en-tête de famille
-    const ftr=document.createElement('tr');ftr.className='fam-row';
-    const flbl=document.createElement('td');flbl.className='lblc';
-    flbl.style.borderLeft='3px solid '+HORIZONS[fam].color;
-    flbl.textContent=HORIZONS[fam].label;
-    ftr.appendChild(flbl);
-    for(let i=0;i<months.length;i++)ftr.appendChild(document.createElement('td'));
-    tbody.appendChild(ftr);
-
-    // lignes de la famille
-    for(const {e,l} of rows){
-      const tr=document.createElement('tr');
-      tr.appendChild(mkLabel(l.label||acLabel(l.assetClassId), e.name));
-      for(const mo of months){
-        const s=snapOf[mo];const v=(s&&s.lines)?s.lines[l.id]:undefined;
-        tr.appendChild(mkCell(v!=null?fmtCell(v):'–', v!=null?'cellv':'cellv empty'));
-      }
-      tbody.appendChild(tr);
-    }
-  }
-
-  // calculs net hors RP par mois
-  const fnet={};months.forEach(mo=>{const s=snapOf[mo];fnet[mo]=s?snapFinancierNet(s):null;});
-
-  // ligne générique de totaux
-  const totalRow=(label,cls,valueFn)=>{
-    const tr=document.createElement('tr');tr.className=cls;
-    const td=document.createElement('td');td.className='lblc';td.textContent=label;tr.appendChild(td);
-    months.forEach((mo,i)=>{const c=valueFn(mo,i);tr.appendChild(c);});
-    return tr;
-  };
-
-  tbody.appendChild(totalRow('TOTAL BRUT','tot',mo=>{const s=snapOf[mo];return mkCell(s?fmtCell(s.brut):'');}));
-  tbody.appendChild(totalRow('TOTAL NET','tot',mo=>{const s=snapOf[mo];return mkCell(s?fmtCell(s.net):'');}));
-  tbody.appendChild(totalRow('TOTAL NET HORS RP','tot hl',mo=>mkCell(fnet[mo]!=null?fmtCell(fnet[mo]):'')));
-  tbody.appendChild(totalRow('Δ mensuel (net hors RP)','deltarow',(mo,i)=>{
-    if(i===0||fnet[mo]==null||fnet[months[i-1]]==null)return document.createElement('td');
-    const d=fnet[mo]-fnet[months[i-1]];
-    return mkCell((d>=0?'+':'−')+fmtCell(Math.abs(d)), d>=0?'dpos':'dneg');
-  }));
-
-  table.appendChild(tbody);
-
-  // cale le scroll sur les derniers mois
-  const wrap=document.getElementById('histScroll');
-  requestAnimationFrame(()=>{wrap.scrollLeft=wrap.scrollWidth;});
 }
 function snapFinancierNet(s){
   const rpLines=new Set();
