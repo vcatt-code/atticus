@@ -202,6 +202,9 @@
   table.eh tr.ehfam td{background:var(--surface-3);font-family:"Fraunces",serif;font-weight:600;font-size:12px}
   table.eh tr.ehtot td{font-weight:700;border-top:2px solid var(--line-2);background:var(--surface-2)}
   table.eh tr.ehtot.hl td{color:var(--gold)}
+  table.eh tr.ehdelta td{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-style:italic;background:var(--surface-2);color:var(--muted)}
+  table.eh tr.ehdelta td.ehl{font-style:normal;background:var(--surface-2)}
+  table.eh tr.ehdelta .dpos{color:var(--pos)}table.eh tr.ehdelta .dneg{color:var(--neg)}
 
   /* Treemap */
   .treemap{position:relative;width:100%;height:380px;margin-top:6px}
@@ -1108,10 +1111,31 @@ function renderEnvHistory(){
     }
   }
   // total net par mois
-  const ttr=document.createElement('tr');ttr.className='ehtot hl';
+  const ttr=document.createElement('tr');ttr.className='ehtot';
   const tl=document.createElement('td');tl.className='ehl';tl.textContent='TOTAL NET';ttr.appendChild(tl);
   for(const mo of months){const s=snapOf[mo];const td=document.createElement('td');td.className='ehv';td.textContent=s?fmtCell(s.net):'';ttr.appendChild(td);}
   tbody.appendChild(ttr);
+
+  // total net hors RP
+  const fnet={};months.forEach(mo=>{const s=snapOf[mo];fnet[mo]=s?snapFinancierNet(s):null;});
+  const rtr=document.createElement('tr');rtr.className='ehtot hl';
+  const rl=document.createElement('td');rl.className='ehl';rl.textContent='TOTAL NET HORS RP';rtr.appendChild(rl);
+  for(const mo of months){const td=document.createElement('td');td.className='ehv';td.textContent=fnet[mo]!=null?fmtCell(fnet[mo]):'';rtr.appendChild(td);}
+  tbody.appendChild(rtr);
+
+  // delta mensuel du net hors RP
+  const dtr=document.createElement('tr');dtr.className='ehdelta';
+  const dl=document.createElement('td');dl.className='ehl';dl.textContent='Δ mensuel (net hors RP)';dtr.appendChild(dl);
+  months.forEach((mo,i)=>{
+    const td=document.createElement('td');td.className='ehv';
+    if(i>0&&fnet[mo]!=null&&fnet[months[i-1]]!=null){
+      const d=fnet[mo]-fnet[months[i-1]];
+      td.textContent=(d>=0?'+':'−')+fmtCell(Math.abs(d));
+      td.classList.add(d>=0?'dpos':'dneg');
+    }
+    dtr.appendChild(td);
+  });
+  tbody.appendChild(dtr);
 
   table.appendChild(tbody);wrap.appendChild(table);
   requestAnimationFrame(()=>{wrap.scrollLeft=wrap.scrollWidth;});
@@ -1237,6 +1261,9 @@ document.getElementById('btnExportXlsx').onclick=()=>{
     }
     eh.push([]);
     eh.push(['TOTAL NET','','',...months.map(mo=>snapMap[mo]?snapMap[mo].net:'')]);
+    const fnetX={};months.forEach(mo=>{fnetX[mo]=snapMap[mo]?snapFinancierNet(snapMap[mo]):null;});
+    eh.push(['TOTAL NET HORS RP','','',...months.map(mo=>fnetX[mo]!=null?Math.round(fnetX[mo]):'')]);
+    eh.push(['Δ mensuel (net hors RP)','','',...months.map((mo,i)=>(i>0&&fnetX[mo]!=null&&fnetX[months[i-1]]!=null)?Math.round(fnetX[mo]-fnetX[months[i-1]]):'')]);
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(eh),'Histo enveloppes');
   }
   XLSX.writeFile(wb,'patrimoine.xlsx');toast('Export Excel');
