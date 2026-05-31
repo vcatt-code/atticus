@@ -336,10 +336,42 @@
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface-3);border:1px solid var(--line-2);color:var(--text);padding:12px 20px;border-radius:11px;font-size:13px;opacity:0;transition:.25s;z-index:90;box-shadow:0 20px 40px -20px #000}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .hidden{display:none!important}
+
+  /* Écran de démarrage */
+  .boot{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:radial-gradient(900px 500px at 50% 0%,var(--glow1),transparent 60%),var(--ink)}
+  .boot-card{text-align:center;max-width:420px;padding:30px}
+  .boot-logo{width:54px;height:54px;border-radius:15px;background:linear-gradient(150deg,var(--gold),var(--gold-dim));display:grid;place-items:center;color:#1a1407;font-weight:700;font-family:"Fraunces",serif;font-size:26px;margin:0 auto 20px;box-shadow:0 10px 30px -10px var(--gold-dim)}
+  .boot-title{font-family:"Fraunces",serif;font-size:27px;font-weight:500;margin-bottom:18px}
+  .boot-title span{color:var(--gold)}
+  .boot-msg{color:var(--muted);font-size:14px;margin-bottom:22px;min-height:20px}
+  .boot-spin{width:30px;height:30px;border:3px solid var(--line-2);border-top-color:var(--gold);border-radius:50%;margin:0 auto;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .boot-actions{display:flex;flex-direction:column;gap:10px;align-items:center}
+  .boot-actions .btn{width:100%;justify-content:center;padding:11px}
+  .boot-note{margin-top:18px;font-size:12px;color:var(--muted-2);line-height:1.6}
+  .save-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--muted-2);margin-left:auto}
+  .save-badge .d{width:7px;height:7px;border-radius:50%;background:var(--muted-2);transition:.2s}
+  .save-badge.saving .d{background:var(--gold);animation:pulse 1s infinite}
+  .save-badge.saved .d{background:var(--pos)}
+  .save-badge.error .d{background:var(--neg)}
+  @keyframes pulse{50%{opacity:.4}}
   @media(max-width:1000px){.sidebar{width:64px}.sb-brand h1,.sb-brand .brand-sub,.nav-item span,.drive-pill span{display:none}.nav-item{justify-content:center}.cols-2,.hero{grid-template-columns:1fr}.hero .kpi{border-left:none;border-top:1px solid var(--line);padding-left:0;padding-top:18px}.alloc-wrap{grid-template-columns:1fr}.inc-cards{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
+<div class="boot" id="boot">
+  <div class="boot-card">
+    <div class="boot-logo">A</div>
+    <div class="boot-title">Atticus <span>Patrimoine</span></div>
+    <div class="boot-msg" id="bootMsg">Connexion à Google Drive…</div>
+    <div class="boot-spin" id="bootSpin"></div>
+    <div class="boot-actions hidden" id="bootActions">
+      <button class="btn gold" id="bootConnect"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3.3 18l4.4-7.6h8.6L11.9 18zM8.7 9.4 13 2h4.3l-4.3 7.4zM17.4 3.2 21.7 10.6 19.5 14.4l-4.3-7.5z"/></svg> Se connecter à Google Drive</button>
+      <button class="btn ghost" id="bootLocal">Continuer sans synchro</button>
+    </div>
+    <div class="boot-note hidden" id="bootNote"></div>
+  </div>
+</div>
 <div class="app">
   <aside class="sidebar">
     <div class="sb-brand"><div class="dot">A</div><div><h1>Atticus</h1><span class="brand-sub">Patrimoine</span></div></div>
@@ -353,7 +385,7 @@
       <div class="nav-item" data-page="projection"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg><span>Projection</span></div>
       <div class="nav-item" data-page="parametres"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 00-1.7-1l-.3-2.5h-4l-.3 2.5a7 7 0 00-1.7 1l-2.4-1-2 3.5 2 1.5a7 7 0 000 2l-2 1.5 2 3.5 2.4-1a7 7 0 001.7 1l.3 2.5h4l.3-2.5a7 7 0 001.7-1l2.4 1 2-3.5-2-1.5c.06-.3.1-.66.1-1z"/></svg><span>Paramètres</span></div>
     </nav>
-    <div class="sb-foot"><div class="drive-pill" id="drivePill"><span class="led"></span><span id="driveLabel">Drive non connecté</span></div></div>
+    <div class="sb-foot"><div class="drive-pill" id="drivePill"><span class="led"></span><span id="driveLabel">Drive non connecté</span></div><div class="save-badge" id="saveBadge" style="margin-left:0;margin-top:8px"><span class="d"></span><span class="t"></span></div></div>
   </aside>
 
   <div class="content">
@@ -623,7 +655,7 @@ function renderDashboard(c){
   const sn=db.snapshots||[];if(sn.length>1){const a=snapFinancierNet(sn[sn.length-2]),b=snapFinancierNet(sn[sn.length-1]);const d=b-a;const el=document.getElementById('kpiDelta');el.classList.toggle('neg',d<0);el.querySelector('.chip').textContent=(d>=0?'+':'−')+eurShort(Math.abs(d));}
   const mode=db.ui.allocMode||'net';
   document.getElementById('allocSub').textContent=mode==='net'?"Répartition du patrimoine net (dette déduite)":"Répartition du patrimoine brut";
-  document.querySelectorAll('#allocSeg button').forEach(b=>{b.classList.toggle('on',b.dataset.m===mode);b.onclick=()=>{db.ui.allocMode=b.dataset.m;renderDashboard(compute());};});
+  document.querySelectorAll('#allocSeg button').forEach(b=>{b.classList.toggle('on',b.dataset.m===mode);b.onclick=()=>{db.ui.allocMode=b.dataset.m;touch();renderDashboard(compute());};});
   drawDonut('donut','donutCenter','legend',mode==='net'?c.byClassNet:c.byClass,true,{hidden:new Set(db.ui.hiddenClasses),interactive:true});
   renderEnvelopeAlloc(mode);renderTreemap(mode);renderHorizons();renderEvolution();
 }
@@ -644,7 +676,7 @@ function drawDonut(canvasId,centerId,legendId,byClass,ordered,opts){
     const off=hidden&&hidden.has(k);
     const row=document.createElement('div');row.className='leg-row'+(off?' off':'')+(interactive?' clk':'');
     row.innerHTML=`<span class="sw" style="background:${acColor(k)}"></span><span class="nm">${acLabel(k)}</span><span class="pc">${off?'—':(v/total*100).toFixed(1)+'%'}</span><span class="am">${eurShort(v)}</span>`;
-    if(interactive)row.onclick=()=>{const arr=db.ui.hiddenClasses,i=arr.indexOf(k);if(i>=0)arr.splice(i,1);else arr.push(k);renderDashboard(compute());};
+    if(interactive)row.onclick=()=>{const arr=db.ui.hiddenClasses,i=arr.indexOf(k);if(i>=0)arr.splice(i,1);else arr.push(k);touch();renderDashboard(compute());};
     leg.appendChild(row);
   }
 }
@@ -743,7 +775,7 @@ function renderActifs(c){
     html+=`</div>`;g.innerHTML=html;box.appendChild(g);
   }
   box.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{const[ei,li]=b.dataset.edit.split('|');openLine(ei,li);});
-  box.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const[ei,li]=b.dataset.del.split('|');const e=db.envelopes.find(x=>x.id===ei);const l=e&&e.lines.find(x=>x.id===li);if(!l)return;if(!confirm('Supprimer « '+(l.label||acLabel(l.assetClassId))+' » ?'))return;e.lines=e.lines.filter(x=>x.id!==li);if(!e.lines.length)db.envelopes=db.envelopes.filter(x=>x.id!==e.id);renderPage('actifs');toast('Actif supprimé');});
+  box.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const[ei,li]=b.dataset.del.split('|');const e=db.envelopes.find(x=>x.id===ei);const l=e&&e.lines.find(x=>x.id===li);if(!l)return;if(!confirm('Supprimer « '+(l.label||acLabel(l.assetClassId))+' » ?'))return;e.lines=e.lines.filter(x=>x.id!==li);if(!e.lines.length)db.envelopes=db.envelopes.filter(x=>x.id!==e.id);renderPage('actifs');toast('Actif supprimé');touch();});
 }
 
 /* éditeur de ligne (actif) */
@@ -780,9 +812,9 @@ function openLine(eid,lid){
     const tgt=db.envelopes.find(e=>e.id===newEid);
     const idx=tgt.lines.findIndex(l=>l.id===editLine.id);
     if(idx>=0)tgt.lines[idx]=editLine;else tgt.lines.push(editLine);
-    closeModal();renderPage(currentPage);toast('Actif enregistré');
+    closeModal();renderPage(currentPage);toast('Actif enregistré');touch();
   };
-  if(!editLineNew)document.getElementById('l_del').onclick=()=>{const e=db.envelopes.find(x=>x.id===editLineEnv);e.lines=e.lines.filter(l=>l.id!==editLine.id);if(!e.lines.length)db.envelopes=db.envelopes.filter(x=>x.id!==e.id);closeModal();renderPage(currentPage);toast('Actif supprimé');};
+  if(!editLineNew)document.getElementById('l_del').onclick=()=>{const e=db.envelopes.find(x=>x.id===editLineEnv);e.lines=e.lines.filter(l=>l.id!==editLine.id);if(!e.lines.length)db.envelopes=db.envelopes.filter(x=>x.id!==e.id);closeModal();renderPage(currentPage);toast('Actif supprimé');touch();};
 }
 
 /* ============ ENVELOPPES ============ */
@@ -832,7 +864,7 @@ function renderAccounts(){
   box.querySelectorAll('.env-bar').forEach(bar=>bar.onclick=ev=>{if(ev.target.closest('[data-editenv]'))return;const id=bar.dataset.env;expanded.has(id)?expanded.delete(id):expanded.add(id);renderAccounts();});
   box.querySelectorAll('[data-editenv]').forEach(b=>b.onclick=ev=>{ev.stopPropagation();openEnvelope(b.dataset.editenv);});
   box.querySelectorAll('[data-editline]').forEach(b=>b.onclick=()=>{const[ei,li]=b.dataset.editline.split('|');openLine(ei,li);});
-  box.querySelectorAll('[data-delline]').forEach(b=>b.onclick=()=>{const[ei,li]=b.dataset.delline.split('|');const e=db.envelopes.find(x=>x.id===ei);const l=e&&e.lines.find(x=>x.id===li);if(!l)return;if(!confirm('Supprimer « '+(l.label||acLabel(l.assetClassId))+' » ?'))return;e.lines=e.lines.filter(x=>x.id!==li);renderAccounts();toast('Actif supprimé');});
+  box.querySelectorAll('[data-delline]').forEach(b=>b.onclick=()=>{const[ei,li]=b.dataset.delline.split('|');const e=db.envelopes.find(x=>x.id===ei);const l=e&&e.lines.find(x=>x.id===li);if(!l)return;if(!confirm('Supprimer « '+(l.label||acLabel(l.assetClassId))+' » ?'))return;e.lines=e.lines.filter(x=>x.id!==li);renderAccounts();toast('Actif supprimé');touch();});
   box.querySelectorAll('[data-addline]').forEach(b=>b.onclick=()=>openLine(b.dataset.addline,null));
 }
 
@@ -861,8 +893,8 @@ function renderEnvModal(){
   document.getElementById('addLine').onclick=()=>{editEnv.lines.push({id:uid('l_'),assetClassId:db.ref.assetClasses[0].id,label:"",value:0});renderEnvModal();};
   document.getElementById('f_type').onchange=el=>{editEnv.typeId=el.target.value;const t=ENV_TYPES[editEnv.typeId];if(t&&editIsNew){editEnv.horizon=t.defaultHorizon;document.getElementById('f_horizon').value=t.defaultHorizon;}};
   document.getElementById('m_cancel').onclick=closeModal;
-  document.getElementById('m_save').onclick=()=>{editEnv.name=document.getElementById('f_name').value.trim()||etLabel(editEnv.typeId);editEnv.typeId=document.getElementById('f_type').value;editEnv.horizon=document.getElementById('f_horizon').value;editEnv.debt=parseFloat(document.getElementById('f_debt').value)||0;const idx=db.envelopes.findIndex(x=>x.id===editEnv.id);if(idx>=0)db.envelopes[idx]=editEnv;else db.envelopes.push(editEnv);closeModal();renderPage(currentPage);toast('Enveloppe enregistrée');};
-  if(!editIsNew)document.getElementById('m_del').onclick=()=>{if(!confirm('Supprimer cette enveloppe ?'))return;db.envelopes=db.envelopes.filter(x=>x.id!==editEnv.id);closeModal();renderPage(currentPage);toast('Enveloppe supprimée');};
+  document.getElementById('m_save').onclick=()=>{editEnv.name=document.getElementById('f_name').value.trim()||etLabel(editEnv.typeId);editEnv.typeId=document.getElementById('f_type').value;editEnv.horizon=document.getElementById('f_horizon').value;editEnv.debt=parseFloat(document.getElementById('f_debt').value)||0;const idx=db.envelopes.findIndex(x=>x.id===editEnv.id);if(idx>=0)db.envelopes[idx]=editEnv;else db.envelopes.push(editEnv);closeModal();renderPage(currentPage);toast('Enveloppe enregistrée');touch();};
+  if(!editIsNew)document.getElementById('m_del').onclick=()=>{if(!confirm('Supprimer cette enveloppe ?'))return;db.envelopes=db.envelopes.filter(x=>x.id!==editEnv.id);closeModal();renderPage(currentPage);toast('Enveloppe supprimée');touch();};
 }
 function closeModal(){document.getElementById('overlay').classList.remove('open');}
 document.getElementById('overlay').onclick=e=>{if(e.target.id==='overlay')closeModal();};
@@ -882,15 +914,15 @@ function renderParametres(){
   list.forEach((item,i)=>{const used=refUsage(refTab,item.id);let extra='';if(refTab==='assetClasses')extra=`<input type="color" data-i="${i}" data-f="color" value="${item.color}"><span class="yld"><input type="number" step="0.1" data-i="${i}" data-f="yield" value="${item.yield!=null?item.yield:0}"> %/an</span>`;extra+=`<select data-i="${i}" data-f="defaultHorizon">${hzOpts(item.defaultHorizon)}</select>`;const up=`<button class="icon-btn mv" data-mv="${i}" data-dir="-1" ${i===0?'disabled style=opacity:.25':''}>↑</button>`,down=`<button class="icon-btn mv" data-mv="${i}" data-dir="1" ${i===list.length-1?'disabled style=opacity:.25':''}>↓</button>`;html+=`<div class="ref-item"><input type="text" data-i="${i}" data-f="label" value="${item.label.replace(/"/g,'&quot;')}">${extra}<span class="used">${used?used+' util.':'inutilisé'}</span>${up}${down}<button class="icon-btn" data-del="${i}" ${used?'disabled style=opacity:.3':''}>✕</button></div>`;});
   html+=`<button class="mini-add" id="refAdd">+ ajouter</button>`;
   body.innerHTML=html;
-  body.querySelectorAll('[data-f]').forEach(el=>el.onchange=()=>{const i=+el.dataset.i,f=el.dataset.f;list[i][f]=(f==='yield')?(parseFloat(el.value)||0):el.value;rebuildRefMaps();});
-  body.querySelectorAll('[data-mv]').forEach(b=>{if(b.disabled)return;b.onclick=()=>{const i=+b.dataset.mv,j=i+(+b.dataset.dir);if(j<0||j>=list.length)return;[list[i],list[j]]=[list[j],list[i]];rebuildRefMaps();renderParametres();};});
-  body.querySelectorAll('[data-del]').forEach(b=>{if(b.disabled)return;b.onclick=()=>{list.splice(+b.dataset.del,1);rebuildRefMaps();renderParametres();};});
-  document.getElementById('refAdd').onclick=()=>{const label=prompt('Nom :');if(!label)return;const id=uid(refTab.slice(0,3)+'_');if(refTab==='assetClasses')list.push({id,label,color:'#8888aa',defaultHorizon:'moyen',yield:0});else list.push({id,label,defaultHorizon:'moyen'});rebuildRefMaps();renderParametres();};
+  body.querySelectorAll('[data-f]').forEach(el=>el.onchange=()=>{const i=+el.dataset.i,f=el.dataset.f;list[i][f]=(f==='yield')?(parseFloat(el.value)||0):el.value;rebuildRefMaps();touch();});
+  body.querySelectorAll('[data-mv]').forEach(b=>{if(b.disabled)return;b.onclick=()=>{const i=+b.dataset.mv,j=i+(+b.dataset.dir);if(j<0||j>=list.length)return;[list[i],list[j]]=[list[j],list[i]];rebuildRefMaps();touch();renderParametres();};});
+  body.querySelectorAll('[data-del]').forEach(b=>{if(b.disabled)return;b.onclick=()=>{list.splice(+b.dataset.del,1);rebuildRefMaps();touch();renderParametres();};});
+  document.getElementById('refAdd').onclick=()=>{const label=prompt('Nom :');if(!label)return;const id=uid(refTab.slice(0,3)+'_');if(refTab==='assetClasses')list.push({id,label,color:'#8888aa',defaultHorizon:'moyen',yield:0});else list.push({id,label,defaultHorizon:'moyen'});rebuildRefMaps();touch();renderParametres();};
 }
 
 /* ============ SNAPSHOT ============ */
 function snapshotCurrent(ym){const lines={},debts={};for(const e of db.envelopes){for(const l of e.lines)lines[l.id]=l.value;if(e.debt)debts[e.id]=e.debt;}const c=compute();const snap={date:ym,lines,debts,brut:c.brut,net:c.net};const i=db.snapshots.findIndex(s=>s.date===ym);if(i>=0)db.snapshots[i]=snap;else db.snapshots.push(snap);db.snapshots.sort((a,b)=>a.date.localeCompare(b.date));}
-document.getElementById('btnSnap').onclick=()=>{const ym=prompt('Clôturer le mois (AAAA-MM) :',db.meta.lastUpdated.slice(0,7));if(!ym)return;snapshotCurrent(ym);toast('Instantané '+ym+' enregistré');};
+document.getElementById('btnSnap').onclick=()=>{const ym=prompt('Clôturer le mois (AAAA-MM) :',db.meta.lastUpdated.slice(0,7));if(!ym)return;snapshotCurrent(ym);touch();toast('Instantané '+ym+' enregistré');};
 
 /* ============ PROJECTION ============ */
 const projState={years:15,saving:1500,includeRp:false,splitPct:null};
@@ -1122,7 +1154,7 @@ function migrate(d){
   return d;
 }
 document.getElementById('btnImport').onclick=()=>document.getElementById('fileInput').click();
-document.getElementById('fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);d=migrate(d);if(!d.envelopes)throw 0;db=d;rebuildRefMaps();navigate(currentPage);toast('Données importées');}catch{toast('Fichier JSON invalide');}};r.readAsText(f);e.target.value='';};
+document.getElementById('fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);d=migrate(d);if(!d.envelopes)throw 0;db=d;rebuildRefMaps();navigate(currentPage);toast('Données importées');touch();}catch{toast('Fichier JSON invalide');}};r.readAsText(f);e.target.value='';};
 document.getElementById('btnExportJson').onclick=()=>{db.meta.lastUpdated=new Date().toISOString().slice(0,10);download(new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),'patrimoine.json');toast('Export JSON');};
 document.getElementById('btnExportXlsx').onclick=()=>{
   const wb=XLSX.utils.book_new();const c=compute();
@@ -1148,7 +1180,7 @@ document.getElementById('btnExportXlsx').onclick=()=>{
 function download(blob,name){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u);}
 
 /* ============ DRIVE ============ */
-const DRIVE_CONFIG={clientId:"264100909833-m9ufodvp3brtf1p4pgt1asfnhch46rcf.apps.googleusercontent.com",scope:"https://www.googleapis.com/auth/drive.file",fileName:"patrimoine.json",folderName:"Atticus"};
+const DRIVE_CONFIG={clientId:"",scope:"https://www.googleapis.com/auth/drive.file",fileName:"patrimoine.json",folderName:"Atticus"};
 let driveFolderId=null;
 let driveToken=null,driveFileId=null;
 function driveClick(){if(!DRIVE_CONFIG.clientId)return showDriveSetup();if(driveConnected&&driveToken){driveSave(false);return;}(async()=>{try{if(!window.google?.accounts?.oauth2)await loadScript('https://accounts.google.com/gsi/client');google.accounts.oauth2.initTokenClient({client_id:DRIVE_CONFIG.clientId,scope:DRIVE_CONFIG.scope,callback:async resp=>{driveToken=resp.access_token;await driveSync();}}).requestAccessToken();}catch(e){toast('Erreur Drive');}})();}
@@ -1174,9 +1206,31 @@ async function driveSync(){
     setDriveOn('Drive — chargé');
   }else{await driveSave(true);setDriveOn('Drive — créé');}
 }
-async function driveSave(create=false){const body=JSON.stringify(db,null,2),meta=create?{name:DRIVE_CONFIG.fileName,mimeType:'application/json',parents:driveFolderId?[driveFolderId]:undefined}:{name:DRIVE_CONFIG.fileName,mimeType:'application/json'},b='----xyz';const mp=`--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;const url=create?'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart':`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`;const res=await fetch(url,{method:create?'POST':'PATCH',headers:{Authorization:'Bearer '+driveToken,'Content-Type':`multipart/related; boundary=${b}`},body:mp}).then(r=>r.json());if(create)driveFileId=res.id;toast('Enregistré sur Drive');}
+async function driveSave(create=false,silent=false){const body=JSON.stringify(db,null,2),meta=create?{name:DRIVE_CONFIG.fileName,mimeType:'application/json',parents:driveFolderId?[driveFolderId]:undefined}:{name:DRIVE_CONFIG.fileName,mimeType:'application/json'},b='----xyz';const mp=`--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;const url=create?'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart':`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=multipart`;const res=await fetch(url,{method:create?'POST':'PATCH',headers:{Authorization:'Bearer '+driveToken,'Content-Type':`multipart/related; boundary=${b}`},body:mp});if(!res.ok)throw new Error('save '+res.status);const j=await res.json();if(create)driveFileId=j.id;if(!silent)toast('Enregistré sur Drive');return j;}
 function setDriveOn(l){document.getElementById('drivePill').classList.add('on');document.getElementById('driveLabel').textContent=l;driveConnected=true;}
-let driveConnected=false;
+let driveConnected=false,bootDone=false,saveTimer=null,savePending=false,saveInFlight=false;
+function touch(){db.meta.lastUpdated=new Date().toISOString().slice(0,10);scheduleSave();}
+function setSaveBadge(state,txt){const b=document.getElementById('saveBadge');if(!b)return;b.className='save-badge '+(state||'');b.querySelector('.t').textContent=txt||'';}
+function scheduleSave(){
+  if(!bootDone||!driveConnected||!driveToken)return; // pas de save tant que pas chargé/connecté
+  savePending=true;setSaveBadge('saving','Enregistrement…');
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(flushSave,1500);
+}
+async function flushSave(){
+  if(!savePending||saveInFlight)return;
+  if(!driveConnected||!driveToken){return;}
+  saveInFlight=true;savePending=false;
+  try{
+    await driveSave(false,true); // silent
+    setSaveBadge('saved','Enregistré');
+  }catch(e){
+    setSaveBadge('error','Échec — nouvel essai…');savePending=true;
+    clearTimeout(saveTimer);saveTimer=setTimeout(flushSave,4000);
+  }finally{saveInFlight=false;if(savePending)scheduleSave();}
+}
+// sauvegarde de secours si l'onglet se ferme avec des modifs en attente
+window.addEventListener('beforeunload',e=>{if(savePending&&driveConnected){e.preventDefault();e.returnValue='';}});
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
 function showDriveSetup(){document.getElementById('modalBox').innerHTML=`<h3>Activer la synchro Google Drive</h3><div class="info-block">Configuration unique (après déploiement GitHub Pages) :<ol><li>Sur <code>console.cloud.google.com</code> : crée/choisis un projet, active l'<b>API Google Drive</b>.</li><li>Crée un <b>ID client OAuth</b> de type <b>Application Web</b>.</li><li>Dans « Origines JavaScript autorisées », ajoute <code>https://&lt;ton-user&gt;.github.io</code></li><li>Colle l'ID dans <code>DRIVE_CONFIG.clientId</code> (dans le fichier), puis pousse sur GitHub.</li></ol>Tes données seront stockées dans le dossier <b>${DRIVE_CONFIG.folderName}</b> de ton Drive (créé automatiquement). En attendant : Importer / Exporter JSON.</div><div class="modal-actions"><button class="btn gold" id="m_ok">Compris</button></div>`;document.getElementById('overlay').classList.add('open');document.getElementById('m_ok').onclick=closeModal;}
 
@@ -1209,9 +1263,9 @@ function renderSheet(){
   document.getElementById('sheetMatrix').innerHTML=head+body+'</tbody>';drawSheetChart(totals);
 }
 function refreshTotals(){const p=Pp(),totals=yearTotals(),m=document.getElementById('sheetMatrix');const tc=m.querySelector('.total-row').children,dc=m.querySelector('.delta-row').children;p.years.forEach((y,i)=>{tc[i+1].textContent=fmtCell(totals[y]);const d=i?totals[y]-totals[p.years[i-1]]:null;dc[i+1].textContent=d===null?'':((d>=0?'+':'−')+fmtCell(Math.abs(d)));});drawSheetChart(totals);}
-function onSheetEdit(e){const el=e.target,p=Pp();if(el.classList?.contains('cell')){const it=p.items.find(i=>i.id===el.dataset.id),y=+el.dataset.year,n=parseNum(el.textContent);if(n)it.values[y]=n;else delete it.values[y];el.textContent=fmtCell(it.values[y]);refreshTotals();}else if(el.dataset?.label){const it=p.items.find(i=>i.id===el.dataset.label);it.label=el.textContent.trim()||it.label;}else if(el.dataset?.meta){p.meta[+el.dataset.meta]=el.textContent.trim();}}
+function onSheetEdit(e){const el=e.target,p=Pp();if(el.classList?.contains('cell')){const it=p.items.find(i=>i.id===el.dataset.id),y=+el.dataset.year,n=parseNum(el.textContent);if(n)it.values[y]=n;else delete it.values[y];el.textContent=fmtCell(it.values[y]);refreshTotals();touch();}else if(el.dataset?.label){const it=p.items.find(i=>i.id===el.dataset.label);it.label=el.textContent.trim()||it.label;touch();}else if(el.dataset?.meta){p.meta[+el.dataset.meta]=el.textContent.trim();touch();}}
 function onSheetFocus(e){const el=e.target;if(!el.classList?.contains('cell'))return;const it=Pp().items.find(i=>i.id===el.dataset.id),v=it.values[+el.dataset.year];el.textContent=v?String(v):'';const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);}
-function onSheetClick(e){const btn=e.target.closest('button[data-act]');if(!btn)return;const p=Pp(),it=p.items.find(i=>i.id===btn.dataset.id);if(btn.dataset.act==='hide')it.active=false;else if(btn.dataset.act==='show')it.active=true;else if(btn.dataset.act==='del'){if(!confirm('Supprimer « '+it.label+' » ?'))return;p.items=p.items.filter(i=>i.id!==it.id);}renderSheet();}
+function onSheetClick(e){const btn=e.target.closest('button[data-act]');if(!btn)return;const p=Pp(),it=p.items.find(i=>i.id===btn.dataset.id);if(btn.dataset.act==='hide')it.active=false;else if(btn.dataset.act==='show')it.active=true;else if(btn.dataset.act==='del'){if(!confirm('Supprimer « '+it.label+' » ?'))return;p.items=p.items.filter(i=>i.id!==it.id);}touch();renderSheet();}
 function drawSheetChart(totals){const ctx=document.getElementById('sheetChart');if(!ctx)return;charts.sheet?.destroy();const p=Pp(),col=curPerson==='vincent'?'#8FAE5E':'#D9612B';const grad=ctx.getContext('2d').createLinearGradient(0,0,0,200);grad.addColorStop(0,curPerson==='vincent'?'rgba(143,174,94,.28)':'rgba(217,97,43,.28)');grad.addColorStop(1,'rgba(0,0,0,0)');charts.sheet=new Chart(ctx,{type:'line',data:{labels:p.years,datasets:[{data:p.years.map(y=>totals[y]),borderColor:col,backgroundColor:grad,fill:true,tension:.3,borderWidth:2.5,pointRadius:3,pointBackgroundColor:col,pointBorderColor:getCss('--ink'),pointBorderWidth:2}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+eurShort(c.raw)}}},scales:{x:{grid:{display:false},ticks:{color:getCss('--muted-2'),font:{family:'IBM Plex Mono'}}},y:{grid:{color:getCss('--line')},ticks:{color:getCss('--muted-2'),font:{family:'IBM Plex Mono'},callback:v=>(v/1000)+'k'}}}}});}
 const csvCell=s=>/[;\n"]/.test(s)?'"'+String(s).replace(/"/g,'""')+'"':s;
 function exportPersonCsv(){const p=Pp(),head=['Élément','Catégorie','Actif',...p.years];const lines=[head.join(';')];for(const it of p.items)lines.push([csvCell(it.label),it.cat,it.active?'oui':'non',...p.years.map(y=>it.values[y]??'')].join(';'));download(new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'}),`revenus_${curPerson}.csv`);}
@@ -1221,28 +1275,60 @@ function initSheet(){
   document.getElementById('sheetClose').onclick=closeSheet;
   document.getElementById('sheetOverlay').onclick=e=>{if(e.target.id==='sheetOverlay')closeSheet();};
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.getElementById('sheetOverlay').classList.contains('open'))closeSheet();else if(document.getElementById('overlay').classList.contains('open'))closeModal();}});
-  document.getElementById('sheetAddRow').onclick=()=>{const label=prompt('Libellé :');if(!label)return;const cat=(prompt('Catégorie ? (Salaire / Primes / Avantages / Annexe)','Primes')||'Primes').trim();Pp().items.push({id:uid('x_'),label,cat:CAT_ORDER.includes(cat)?cat:'Primes',active:true,values:{}});renderSheet();};
-  document.getElementById('sheetAddYear').onclick=()=>{const p=Pp(),ny=Math.max(...p.years)+1;p.years.push(ny);p.meta[ny]=p.meta[ny-1]||'';renderSheet();};
+  document.getElementById('sheetAddRow').onclick=()=>{const label=prompt('Libellé :');if(!label)return;const cat=(prompt('Catégorie ? (Salaire / Primes / Avantages / Annexe)','Primes')||'Primes').trim();Pp().items.push({id:uid('x_'),label,cat:CAT_ORDER.includes(cat)?cat:'Primes',active:true,values:{}});touch();renderSheet();};
+  document.getElementById('sheetAddYear').onclick=()=>{const p=Pp(),ny=Math.max(...p.years)+1;p.years.push(ny);p.meta[ny]=p.meta[ny-1]||'';touch();renderSheet();};
   document.getElementById('sheetExport').onclick=exportPersonCsv;
   document.getElementById('sheetImport').onclick=()=>document.getElementById('csvInput').click();
-  document.getElementById('csvInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{importPersonCsv(r.result);renderSheet();toast('Historique importé');}catch{toast('CSV invalide');}};r.readAsText(f);e.target.value='';};
+  document.getElementById('csvInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{importPersonCsv(r.result);renderSheet();touch();toast('Historique importé');}catch{toast('CSV invalide');}};r.readAsText(f);e.target.value='';};
 }
 
 /* ============ INIT ============ */
 document.getElementById('projYears').oninput=e=>{projState.years=+e.target.value;document.getElementById('projYearsLbl').textContent=projState.years+' ans';renderProjection();};
 document.getElementById('projSaving').oninput=e=>{projState.saving=parseFloat(e.target.value)||0;renderProjection();};
 document.getElementById('splitReset').onclick=()=>{initSplit();renderProjection();toast('Répartition alignée sur l\'allocation actuelle');};
-document.getElementById('histSnap').onclick=()=>{const ym=prompt('Clôturer le mois (AAAA-MM) :',db.meta.lastUpdated.slice(0,7));if(!ym)return;snapshotCurrent(ym);renderHistorique();toast('Instantané '+ym+' enregistré');};
+document.getElementById('histSnap').onclick=()=>{const ym=prompt('Clôturer le mois (AAAA-MM) :',db.meta.lastUpdated.slice(0,7));if(!ym)return;snapshotCurrent(ym);renderHistorique();touch();toast('Instantané '+ym+' enregistré');};
 document.getElementById('histExport').onclick=exportHistoryCsv;
 document.getElementById('histImport').onclick=()=>document.getElementById('histCsvInput').click();
-document.getElementById('histCsvInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{importHistoryCsv(r.result);renderHistorique();toast('Historique importé ('+db.snapshots.length+' mois)');}catch{toast('CSV invalide');}};r.readAsText(f);e.target.value='';};
+document.getElementById('histCsvInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{importHistoryCsv(r.result);renderHistorique();touch();toast('Historique importé ('+db.snapshots.length+' mois)');}catch{toast('CSV invalide');}};r.readAsText(f);e.target.value='';};
 let savedTheme='dark';try{savedTheme=localStorage.getItem('pat_theme')||'dark';}catch(e){}
 let _rsz;window.addEventListener('resize',()=>{clearTimeout(_rsz);_rsz=setTimeout(()=>{if(currentPage==='dashboard')renderTreemap(db.ui.allocMode||'net');},200);});
 applyTheme(savedTheme);
 rebuildRefMaps();
-if(!db.snapshots.length)snapshotCurrent(db.meta.lastUpdated.slice(0,7));
 initSheet();
-navigate('dashboard');
+
+/* ---------- Séquence de démarrage ---------- */
+function bootMsg(t){const e=document.getElementById('bootMsg');if(e)e.textContent=t;}
+function revealApp(){bootDone=true;if(!db.snapshots.length)snapshotCurrent(db.meta.lastUpdated.slice(0,7));rebuildRefMaps();navigate('dashboard');const b=document.getElementById('boot');b.style.opacity='0';b.style.transition='opacity .35s';setTimeout(()=>b.remove(),380);}
+function showBootChoice(note){
+  document.getElementById('bootSpin').classList.add('hidden');
+  document.getElementById('bootActions').classList.remove('hidden');
+  const n=document.getElementById('bootNote');if(note){n.textContent=note;n.classList.remove('hidden');}
+}
+async function tokenThen(cb){
+  if(!window.google?.accounts?.oauth2)await loadScript('https://accounts.google.com/gsi/client');
+  google.accounts.oauth2.initTokenClient({client_id:DRIVE_CONFIG.clientId,scope:DRIVE_CONFIG.scope,callback:async resp=>{driveToken=resp.access_token;try{await cb();}catch(e){bootMsg('Erreur de connexion Drive.');showBootChoice('Tu peux réessayer ou continuer sans synchro (tes données resteront locales à cette session).');}}}).requestAccessToken();
+}
+async function bootDrive(){
+  bootMsg('Connexion à Google Drive…');
+  await driveSync();              // crée le dossier Atticus + charge/initialise patrimoine.json
+  setSaveBadge('saved','Synchronisé');
+  revealApp();
+}
+function startBoot(){
+  if(!DRIVE_CONFIG.clientId){
+    // pas encore configuré : on propose le mode local
+    bootMsg('Synchronisation Drive non configurée.');
+    showBootChoice('Renseigne ton identifiant Google (DRIVE_CONFIG.clientId) pour activer la synchro. En attendant, tu peux utiliser l\'app en local (import/export JSON manuel).');
+    document.getElementById('bootConnect').classList.add('hidden');
+  }else{
+    // tentative auto de connexion + chargement avant affichage
+    bootMsg('Connexion à Google Drive…');
+    tokenThen(bootDrive);
+  }
+}
+document.getElementById('bootConnect').onclick=()=>{document.getElementById('bootActions').classList.add('hidden');document.getElementById('bootNote').classList.add('hidden');document.getElementById('bootSpin').classList.remove('hidden');bootMsg('Connexion à Google Drive…');tokenThen(bootDrive);};
+document.getElementById('bootLocal').onclick=()=>revealApp();
+startBoot();
 </script>
 </body>
 </html>
