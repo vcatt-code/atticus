@@ -1306,27 +1306,38 @@ function showBootChoice(note){
 }
 async function tokenThen(cb){
   if(!window.google?.accounts?.oauth2)await loadScript('https://accounts.google.com/gsi/client');
-  google.accounts.oauth2.initTokenClient({client_id:DRIVE_CONFIG.clientId,scope:DRIVE_CONFIG.scope,callback:async resp=>{driveToken=resp.access_token;try{await cb();}catch(e){bootMsg('Erreur de connexion Drive.');showBootChoice('Tu peux réessayer ou continuer sans synchro (tes données resteront locales à cette session).');}}}).requestAccessToken();
+  const client=google.accounts.oauth2.initTokenClient({
+    client_id:DRIVE_CONFIG.clientId,
+    scope:DRIVE_CONFIG.scope,
+    callback:async resp=>{
+      if(resp&&resp.error){bootMsg('Connexion refusée ou annulée.');showBootChoice('Erreur : '+resp.error+'. Vérifie que l\'origine https://vcatt-code.github.io est autorisée dans Google Cloud, puis réessaie.');return;}
+      driveToken=resp.access_token;
+      try{await cb();}catch(e){bootMsg('Erreur de chargement Drive.');showBootChoice('Détail : '+(e&&e.message?e.message:e)+'. Tu peux réessayer ou continuer sans synchro.');}
+    },
+    error_callback:err=>{bootMsg('La fenêtre Google ne s\'est pas ouverte.');showBootChoice('Cause probable : popup bloqué ('+(err&&err.type?err.type:'inconnu')+'). Autorise les popups pour ce site, puis clique à nouveau sur « Se connecter ».');}
+  });
+  try{client.requestAccessToken();}
+  catch(e){bootMsg('Impossible d\'ouvrir la connexion Google.');showBootChoice('Autorise les popups pour ce site puis réessaie. ('+(e&&e.message?e.message:e)+')');}
 }
 async function bootDrive(){
-  bootMsg('Connexion à Google Drive…');
-  await driveSync();              // crée le dossier Atticus + charge/initialise patrimoine.json
+  bootMsg('Chargement de tes données…');
+  await driveSync();
   setSaveBadge('saved','Synchronisé');
   revealApp();
 }
 function startBoot(){
   if(!DRIVE_CONFIG.clientId){
-    // pas encore configuré : on propose le mode local
     bootMsg('Synchronisation Drive non configurée.');
-    showBootChoice('Renseigne ton identifiant Google (DRIVE_CONFIG.clientId) pour activer la synchro. En attendant, tu peux utiliser l\'app en local (import/export JSON manuel).');
+    showBootChoice('Renseigne ton identifiant Google (DRIVE_CONFIG.clientId) pour activer la synchro.');
     document.getElementById('bootConnect').classList.add('hidden');
   }else{
-    // tentative auto de connexion + chargement avant affichage
-    bootMsg('Connexion à Google Drive…');
-    tokenThen(bootDrive);
+    // on NE lance PAS le popup automatiquement (bloqué par les navigateurs) : on attend un clic
+    bootMsg('Connecte-toi à Google Drive pour charger tes données.');
+    showBootChoice('Au premier accès, Google affiche « Application non vérifiée » : Paramètres avancés → Continuer.');
+    document.getElementById('bootConnect').classList.remove('hidden');
   }
 }
-document.getElementById('bootConnect').onclick=()=>{document.getElementById('bootActions').classList.add('hidden');document.getElementById('bootNote').classList.add('hidden');document.getElementById('bootSpin').classList.remove('hidden');bootMsg('Connexion à Google Drive…');tokenThen(bootDrive);};
+document.getElementById('bootConnect').onclick=()=>{document.getElementById('bootActions').classList.add('hidden');document.getElementById('bootNote').classList.add('hidden');document.getElementById('bootSpin').classList.remove('hidden');bootMsg('Ouverture de la fenêtre Google…');tokenThen(bootDrive);};
 document.getElementById('bootLocal').onclick=()=>revealApp();
 startBoot();
 </script>
