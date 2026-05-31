@@ -189,10 +189,11 @@
   .hist-kpi .val.pos{color:var(--pos)}.hist-kpi .val.neg{color:var(--neg)}
   .hist-kpi .sub2{font-size:11px;color:var(--muted-2);margin-top:6px;font-family:"IBM Plex Mono",monospace}
   .hist-tbl-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:11px;position:relative}
-  table.hist-matrix{border-collapse:collapse;font-size:12.5px;width:max-content;min-width:100%}
-  table.hist-matrix th,table.hist-matrix td{padding:0 13px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--line);border-right:1px solid transparent;vertical-align:middle;box-sizing:border-box;height:46px;line-height:1.2}
+  table.hist-matrix{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-content;min-width:100%;table-layout:auto}
+  table.hist-matrix tr{height:46px}
+  table.hist-matrix th,table.hist-matrix td{padding:0 13px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--line);vertical-align:middle;box-sizing:border-box;line-height:1.2}
   table.hist-matrix thead th{position:sticky;top:0;z-index:3;background:var(--surface-3);font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--text);font-size:12px}
-  table.hist-matrix th.lblc,table.hist-matrix td.lblc{position:sticky;left:0;z-index:2;text-align:left;background:var(--surface);min-width:230px;max-width:230px;width:230px;border-right:1px solid var(--line)}
+  table.hist-matrix th.lblc,table.hist-matrix td.lblc{position:sticky;left:0;z-index:2;text-align:left;background:var(--surface);min-width:230px;max-width:230px;width:230px;box-shadow:1px 0 0 var(--line)}
   table.hist-matrix thead th.lblc{z-index:4;background:var(--surface-3)}
   table.hist-matrix td.cellv{font-family:"IBM Plex Mono",monospace;color:var(--text)}
   table.hist-matrix td.cellv.empty{color:var(--muted-2);opacity:.3}
@@ -203,7 +204,8 @@
   table.hist-matrix tr.tot.hl td{color:var(--gold)}
   table.hist-matrix tr.deltarow td{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-style:italic;background:var(--surface-2)}
   table.hist-matrix tr.deltarow td.lblc{background:var(--surface-2);font-style:normal}
-  table.hist-matrix tr.fam-row td{background:var(--surface-3);border-bottom:1px solid var(--line-2);height:36px}
+  table.hist-matrix tr.fam-row{height:36px}
+  table.hist-matrix tr.fam-row td{background:var(--surface-3);border-bottom:1px solid var(--line-2)}
   table.hist-matrix tr.fam-row td.lblc{background:var(--surface-3);font-family:"Fraunces",serif;font-weight:600;font-size:12.5px;color:var(--text)}
   .dpos{color:var(--pos)}.dneg{color:var(--neg)}
   @media(max-width:1000px){.hist-grid{grid-template-columns:1fr}}
