@@ -190,7 +190,7 @@
   .hist-kpi .sub2{font-size:11px;color:var(--muted-2);margin-top:6px;font-family:"IBM Plex Mono",monospace}
   .hist-tbl-wrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:11px;position:relative}
   table.hist-matrix{border-collapse:separate;border-spacing:0;font-size:12.5px;width:max-content;min-width:100%}
-  table.hist-matrix th,table.hist-matrix td{padding:8px 13px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--line)}
+  table.hist-matrix th,table.hist-matrix td{padding:8px 13px;white-space:nowrap;text-align:right;border-bottom:1px solid var(--line);vertical-align:middle;height:38px;box-sizing:border-box}
   table.hist-matrix thead th{position:sticky;top:0;z-index:3;background:var(--surface-3);font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--text);font-size:12px}
   table.hist-matrix th.lblc,table.hist-matrix td.lblc{position:sticky;left:0;z-index:2;text-align:left;background:var(--surface);min-width:230px;max-width:230px;box-shadow:1px 0 0 var(--line)}
   table.hist-matrix thead th.lblc{z-index:4;background:var(--surface-3)}
@@ -924,7 +924,7 @@ function renderParametres(){
 }
 
 /* ============ SNAPSHOT ============ */
-function snapshotCurrent(ym){const lines={},debts={};for(const e of db.envelopes){for(const l of e.lines)lines[l.id]=l.value;if(e.debt)debts[e.id]=e.debt;}const c=compute();const snap={date:ym,lines,debts,brut:c.brut,net:c.net};const i=db.snapshots.findIndex(s=>s.date===ym);if(i>=0)db.snapshots[i]=snap;else db.snapshots.push(snap);db.snapshots.sort((a,b)=>a.date.localeCompare(b.date));}
+function snapshotCurrent(ym){const lines={},debts={};for(const e of db.envelopes){for(const l of e.lines){const v=+l.value||0;if(v!==0)lines[l.id]=v;}if(e.debt)debts[e.id]=e.debt;}const c=compute();const snap={date:ym,lines,debts,brut:c.brut,net:c.net};const i=db.snapshots.findIndex(s=>s.date===ym);if(i>=0)db.snapshots[i]=snap;else db.snapshots.push(snap);db.snapshots.sort((a,b)=>a.date.localeCompare(b.date));}
 document.getElementById('btnSnap').onclick=()=>{const ym=prompt('Clôturer le mois (AAAA-MM) :',db.meta.lastUpdated.slice(0,7));if(!ym)return;snapshotCurrent(ym);touch();toast('Instantané '+ym+' enregistré');};
 
 /* ============ PROJECTION ============ */
@@ -1071,7 +1071,7 @@ function renderHistorique(){
   let head=`<thead><tr><th class="lblc">Élément</th>`+months.map(mo=>`<th>${mo}</th>`).join('')+`</tr></thead><tbody>`;
   let body='';
   const typeIndex=id=>{const i=db.ref.envelopeTypes.findIndex(t=>t.id===id);return i<0?99:i;};
-  const lineHasData=l=>months.some(mo=>{const s=snapByDate(mo);return s&&s.lines&&s.lines[l.id]!=null;});
+  const lineHasData=l=>months.some(mo=>{const s=snapByDate(mo);return s&&s.lines&&s.lines[l.id]!=null&&(+s.lines[l.id])!==0;});
   for(const fam of FAMILY_ORDER){
     const envs=db.envelopes.filter(e=>e.horizon===fam).sort((a,b)=>(typeIndex(a.typeId)-typeIndex(b.typeId))||(envNet(b)-envNet(a)));
     // lignes de la famille ayant au moins une valeur dans l'historique
@@ -1162,7 +1162,11 @@ function migrate(d){
   if(d&&d.accounts&&!d.envelopes){d.envelopes=d.accounts.map((a,i)=>({id:'e'+i,name:(a.inst||'')+' '+(a.type||''),typeId:'cto',horizon:a.horizon||'moyen',debt:a.debt||0,lines:(a.positions||[]).map(p=>({id:uid('l_'),assetClassId:p.ac,label:'',value:p.v}))}));delete d.accounts;}
   if(d&&d.envelopes){d.envelopes.forEach(e=>{if(!e.name)e.name=etLabel(e.typeId);delete e.ownerId;delete e.institutionId;e.lines.forEach(l=>{if(l.label===undefined)l.label='';});});}
   if(d&&d.ref){delete d.ref.institutions;delete d.ref.owners;}
+  // dédoublonnage enveloppes + lignes (sécurité)
+  if(d&&d.envelopes){const se=new Set(),envs=[];for(const e of d.envelopes){if(se.has(e.id))continue;se.add(e.id);const sl=new Set(),ls=[];for(const l of e.lines){if(sl.has(l.id))continue;sl.add(l.id);ls.push(l);}e.lines=ls;envs.push(e);}d.envelopes=envs;}
   d.snapshots=d.snapshots||[];d.legacyHistory=d.legacyHistory||(d.history||[]);delete d.history;
+  // purge des valeurs nulles dans les snapshots (évitent d'afficher des lignes vides)
+  d.snapshots.forEach(s=>{if(s.lines){for(const k in s.lines)if((+s.lines[k]||0)===0)delete s.lines[k];}});
   d.ui=d.ui||{hiddenClasses:["residence_principale"]};d.ui.hiddenClasses=d.ui.hiddenClasses||[];d.ui.allocMode=d.ui.allocMode||"net";
   return d;
 }
