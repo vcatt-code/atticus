@@ -1066,36 +1066,101 @@ const snapByDate=d=>db.snapshots.find(s=>s.date===d);
 function renderHistorique(){
   drawHistoryChart();
   renderHistSide();
+  const table=document.getElementById('histMatrix');
   const months=db.snapshots.map(s=>s.date);
-  const m=document.getElementById('histMatrix');
-  if(!months.length){m.innerHTML='<tbody><tr><td class="lblc" style="padding:14px">Aucune clôture enregistrée. Clôture un mois ou importe un CSV.</td></tr></tbody>';return;}
-  const ncol=months.length;
-  let body='';
+
+  // reset complet de la table
+  while(table.firstChild)table.removeChild(table.firstChild);
+
+  // cas vide
+  if(!months.length){
+    const tb=document.createElement('tbody');
+    const tr=document.createElement('tr');
+    const td=document.createElement('td');
+    td.className='lblc';td.style.padding='14px';
+    td.textContent='Aucune clôture enregistrée. Clôture un mois ou importe un CSV.';
+    tr.appendChild(td);tb.appendChild(tr);table.appendChild(tb);
+    return;
+  }
+
+  // helpers de création de cellules
+  const snapOf={};db.snapshots.forEach(s=>snapOf[s.date]=s);
+  const mkCell=(txt,cls)=>{const td=document.createElement('td');if(cls)td.className=cls;td.textContent=txt;return td;};
+  const mkLabel=(main,sub)=>{
+    const td=document.createElement('td');td.className='lblc';
+    td.appendChild(document.createTextNode(main));
+    if(sub){const sp=document.createElement('span');sp.className='sub-env';sp.textContent=sub;td.appendChild(sp);}
+    return td;
+  };
+
+  // THEAD
+  const thead=document.createElement('thead');
+  const htr=document.createElement('tr');
+  const hlbl=document.createElement('th');hlbl.className='lblc';hlbl.textContent='Élément';htr.appendChild(hlbl);
+  for(const mo of months){const th=document.createElement('th');th.textContent=mo;htr.appendChild(th);}
+  thead.appendChild(htr);
+  table.appendChild(thead);
+
+  // TBODY
+  const tbody=document.createElement('tbody');
   const typeIndex=id=>{const i=db.ref.envelopeTypes.findIndex(t=>t.id===id);return i<0?99:i;};
-  const lineHasData=l=>months.some(mo=>{const s=snapByDate(mo);return s&&s.lines&&s.lines[l.id]!=null&&(+s.lines[l.id])!==0;});
+  const lineHasData=l=>months.some(mo=>{const s=snapOf[mo];return s&&s.lines&&s.lines[l.id]!=null&&(+s.lines[l.id])!==0;});
+
+  // lignes par famille de liquidité
   for(const fam of FAMILY_ORDER){
-    const envs=db.envelopes.filter(e=>e.horizon===fam).sort((a,b)=>(typeIndex(a.typeId)-typeIndex(b.typeId))||(envNet(b)-envNet(a)));
-    // lignes de la famille ayant au moins une valeur dans l'historique
-    const famRows=[];const seenL=new Set();
-    for(const e of envs)for(const l of e.lines){if(seenL.has(l.id))continue;seenL.add(l.id);if(lineHasData(l))famRows.push({e,l});}
-    if(!famRows.length)continue;
-    const col=HORIZONS[fam].color;
-    body+=`<tr class="fam-row"><td class="lblc" style="border-left:3px solid ${col}">${HORIZONS[fam].label}</td>`+months.map(()=>'<td></td>').join('')+`</tr>`;
-    for(const {e,l} of famRows){
-      body+=`<tr><td class="lblc">${l.label||acLabel(l.assetClassId)}<span class="sub-env">${e.name}</span></td>`+months.map(mo=>{const s=snapByDate(mo),v=s&&s.lines?s.lines[l.id]:undefined;return `<td class="cellv${v!=null?'':' empty'}">${v!=null?fmtCell(v):'–'}</td>`;}).join('')+`</tr>`;
+    const envs=db.envelopes.filter(e=>e.horizon===fam)
+      .sort((a,b)=>(typeIndex(a.typeId)-typeIndex(b.typeId))||(envNet(b)-envNet(a)));
+    const rows=[];const seen=new Set();
+    for(const e of envs)for(const l of e.lines){
+      if(seen.has(l.id))continue;seen.add(l.id);
+      if(lineHasData(l))rows.push({e,l});
+    }
+    if(!rows.length)continue;
+
+    // en-tête de famille
+    const ftr=document.createElement('tr');ftr.className='fam-row';
+    const flbl=document.createElement('td');flbl.className='lblc';
+    flbl.style.borderLeft='3px solid '+HORIZONS[fam].color;
+    flbl.textContent=HORIZONS[fam].label;
+    ftr.appendChild(flbl);
+    for(let i=0;i<months.length;i++)ftr.appendChild(document.createElement('td'));
+    tbody.appendChild(ftr);
+
+    // lignes de la famille
+    for(const {e,l} of rows){
+      const tr=document.createElement('tr');
+      tr.appendChild(mkLabel(l.label||acLabel(l.assetClassId), e.name));
+      for(const mo of months){
+        const s=snapOf[mo];const v=(s&&s.lines)?s.lines[l.id]:undefined;
+        tr.appendChild(mkCell(v!=null?fmtCell(v):'–', v!=null?'cellv':'cellv empty'));
+      }
+      tbody.appendChild(tr);
     }
   }
-  body+=`<tr class="tot"><td class="lblc">TOTAL BRUT</td>`+months.map(mo=>{const s=snapByDate(mo);return `<td>${s?fmtCell(s.brut):''}</td>`;}).join('')+`</tr>`;
-  body+=`<tr class="tot"><td class="lblc">TOTAL NET</td>`+months.map(mo=>{const s=snapByDate(mo);return `<td>${s?fmtCell(s.net):''}</td>`;}).join('')+`</tr>`;
-  const fnet={};months.forEach(mo=>{const s=snapByDate(mo);fnet[mo]=s?snapFinancierNet(s):null;});
-  body+=`<tr class="tot hl"><td class="lblc">TOTAL NET HORS RP</td>`+months.map(mo=>`<td>${fnet[mo]!=null?fmtCell(fnet[mo]):''}</td>`).join('')+`</tr>`;
-  body+=`<tr class="deltarow"><td class="lblc">Δ mensuel (net hors RP)</td>`+months.map((mo,i)=>{if(i===0||fnet[mo]==null||fnet[months[i-1]]==null)return '<td></td>';const d=fnet[mo]-fnet[months[i-1]];return `<td class="${d>=0?'dpos':'dneg'}">${(d>=0?'+':'−')+fmtCell(Math.abs(d))}</td>`;}).join('')+`</tr>`;
-  // Construction propre : thead + tbody distincts (évite tout empilement dû au parsing innerHTML d'une <table>)
-  const theadHtml=`<tr><th class="lblc">Élément</th>`+months.map(mo=>`<th>${mo}</th>`).join('')+`</tr>`;
-  m.innerHTML='';
-  const thead=document.createElement('thead');thead.innerHTML=theadHtml;
-  const tbody=document.createElement('tbody');tbody.innerHTML=body;
-  m.appendChild(thead);m.appendChild(tbody);
+
+  // calculs net hors RP par mois
+  const fnet={};months.forEach(mo=>{const s=snapOf[mo];fnet[mo]=s?snapFinancierNet(s):null;});
+
+  // ligne générique de totaux
+  const totalRow=(label,cls,valueFn)=>{
+    const tr=document.createElement('tr');tr.className=cls;
+    const td=document.createElement('td');td.className='lblc';td.textContent=label;tr.appendChild(td);
+    months.forEach((mo,i)=>{const c=valueFn(mo,i);tr.appendChild(c);});
+    return tr;
+  };
+
+  tbody.appendChild(totalRow('TOTAL BRUT','tot',mo=>{const s=snapOf[mo];return mkCell(s?fmtCell(s.brut):'');}));
+  tbody.appendChild(totalRow('TOTAL NET','tot',mo=>{const s=snapOf[mo];return mkCell(s?fmtCell(s.net):'');}));
+  tbody.appendChild(totalRow('TOTAL NET HORS RP','tot hl',mo=>mkCell(fnet[mo]!=null?fmtCell(fnet[mo]):'')));
+  tbody.appendChild(totalRow('Δ mensuel (net hors RP)','deltarow',(mo,i)=>{
+    if(i===0||fnet[mo]==null||fnet[months[i-1]]==null)return document.createElement('td');
+    const d=fnet[mo]-fnet[months[i-1]];
+    return mkCell((d>=0?'+':'−')+fmtCell(Math.abs(d)), d>=0?'dpos':'dneg');
+  }));
+
+  table.appendChild(tbody);
+
+  // cale le scroll sur les derniers mois
   const wrap=document.getElementById('histScroll');
   requestAnimationFrame(()=>{wrap.scrollLeft=wrap.scrollWidth;});
 }
