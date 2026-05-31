@@ -202,6 +202,8 @@
   table.hist-matrix tr.tot.hl td{color:var(--gold)}
   table.hist-matrix tr.deltarow td{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-style:italic;background:var(--surface-2)}
   table.hist-matrix tr.deltarow td.lblc{background:var(--surface-2);font-style:normal}
+  table.hist-matrix tr.fam-row td{background:var(--surface-3);border-bottom:1px solid var(--line-2);padding:7px 13px}
+  table.hist-matrix tr.fam-row td.lblc{background:var(--surface-3);font-family:"Fraunces",serif;font-weight:600;font-size:12.5px;color:var(--text)}
   .dpos{color:var(--pos)}.dneg{color:var(--neg)}
   @media(max-width:1000px){.hist-grid{grid-template-columns:1fr}}
 
@@ -1064,19 +1066,29 @@ function renderHistorique(){
   const months=db.snapshots.map(s=>s.date);
   const m=document.getElementById('histMatrix');
   if(!months.length){m.innerHTML='<tbody><tr><td class="lblc" style="padding:14px">Aucune clôture enregistrée. Clôture un mois ou importe un CSV.</td></tr></tbody>';return;}
+  const ncol=months.length;
   let head=`<thead><tr><th class="lblc">Élément</th>`+months.map(mo=>`<th>${mo}</th>`).join('')+`</tr></thead><tbody>`;
   let body='';
-  for(const e of db.envelopes)for(const l of e.lines){
-    body+=`<tr><td class="lblc">${l.label||acLabel(l.assetClassId)}<span class="sub-env">${e.name}</span></td>`+months.map(mo=>{const s=snapByDate(mo),v=s&&s.lines?s.lines[l.id]:undefined;return `<td class="cellv${v!=null?'':' empty'}">${v!=null?fmtCell(v):'·'}</td>`;}).join('')+`</tr>`;
+  const typeIndex=id=>{const i=db.ref.envelopeTypes.findIndex(t=>t.id===id);return i<0?99:i;};
+  const lineHasData=l=>months.some(mo=>{const s=snapByDate(mo);return s&&s.lines&&s.lines[l.id]!=null;});
+  for(const fam of FAMILY_ORDER){
+    const envs=db.envelopes.filter(e=>e.horizon===fam).sort((a,b)=>(typeIndex(a.typeId)-typeIndex(b.typeId))||(envNet(b)-envNet(a)));
+    // lignes de la famille ayant au moins une valeur dans l'historique
+    const famRows=[];
+    for(const e of envs)for(const l of e.lines)if(lineHasData(l))famRows.push({e,l});
+    if(!famRows.length)continue;
+    const col=HORIZONS[fam].color;
+    body+=`<tr class="fam-row"><td class="lblc" style="border-left:3px solid ${col}">${HORIZONS[fam].label}</td>`+`<td colspan="${ncol}"></td>`+`</tr>`;
+    for(const {e,l} of famRows){
+      body+=`<tr><td class="lblc">${l.label||acLabel(l.assetClassId)}<span class="sub-env">${e.name}</span></td>`+months.map(mo=>{const s=snapByDate(mo),v=s&&s.lines?s.lines[l.id]:undefined;return `<td class="cellv${v!=null?'':' empty'}">${v!=null?fmtCell(v):'·'}</td>`;}).join('')+`</tr>`;
+    }
   }
   body+=`<tr class="tot"><td class="lblc">TOTAL BRUT</td>`+months.map(mo=>{const s=snapByDate(mo);return `<td>${s?fmtCell(s.brut):''}</td>`;}).join('')+`</tr>`;
   body+=`<tr class="tot"><td class="lblc">TOTAL NET</td>`+months.map(mo=>{const s=snapByDate(mo);return `<td>${s?fmtCell(s.net):''}</td>`;}).join('')+`</tr>`;
-  // Total net hors RP + delta mensuel
   const fnet={};months.forEach(mo=>{const s=snapByDate(mo);fnet[mo]=s?snapFinancierNet(s):null;});
   body+=`<tr class="tot hl"><td class="lblc">TOTAL NET HORS RP</td>`+months.map(mo=>`<td>${fnet[mo]!=null?fmtCell(fnet[mo]):''}</td>`).join('')+`</tr>`;
   body+=`<tr class="deltarow"><td class="lblc">Δ mensuel (net hors RP)</td>`+months.map((mo,i)=>{if(i===0||fnet[mo]==null||fnet[months[i-1]]==null)return '<td></td>';const d=fnet[mo]-fnet[months[i-1]];return `<td class="${d>=0?'dpos':'dneg'}">${(d>=0?'+':'−')+fmtCell(Math.abs(d))}</td>`;}).join('')+`</tr>`;
   m.innerHTML=head+body+'</tbody>';
-  // scroll calé sur la fin (derniers mois) après rendu
   const wrap=document.getElementById('histScroll');
   requestAnimationFrame(()=>{wrap.scrollLeft=wrap.scrollWidth;});
 }
