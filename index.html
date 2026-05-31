@@ -480,6 +480,7 @@
             <button class="btn ghost" id="btnImport">Importer JSON</button>
             <button class="btn ghost" id="btnExportJson">Exporter JSON</button>
             <button class="btn ghost" id="btnExportXlsx">Exporter Excel</button>
+            <button class="btn ghost" id="btnDedup">Nettoyer les doublons</button>
             <button class="btn gold" id="btnDrive"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.3 18l4.4-7.6h8.6L11.9 18zM8.7 9.4 13 2h4.3l-4.3 7.4zM17.4 3.2 21.7 10.6 19.5 14.4l-4.3-7.5z"/></svg>Synchroniser Drive</button>
           </div>
         </div>
@@ -1074,11 +1075,11 @@ function renderHistorique(){
   for(const fam of FAMILY_ORDER){
     const envs=db.envelopes.filter(e=>e.horizon===fam).sort((a,b)=>(typeIndex(a.typeId)-typeIndex(b.typeId))||(envNet(b)-envNet(a)));
     // lignes de la famille ayant au moins une valeur dans l'historique
-    const famRows=[];
-    for(const e of envs)for(const l of e.lines)if(lineHasData(l))famRows.push({e,l});
+    const famRows=[];const seenL=new Set();
+    for(const e of envs)for(const l of e.lines){if(seenL.has(l.id))continue;seenL.add(l.id);if(lineHasData(l))famRows.push({e,l});}
     if(!famRows.length)continue;
     const col=HORIZONS[fam].color;
-    body+=`<tr class="fam-row"><td class="lblc" style="border-left:3px solid ${col}">${HORIZONS[fam].label}</td>`+`<td colspan="${ncol}"></td>`+`</tr>`;
+    body+=`<tr class="fam-row"><td class="lblc" style="border-left:3px solid ${col}">${HORIZONS[fam].label}</td>`+months.map(()=>'<td></td>').join('')+`</tr>`;
     for(const {e,l} of famRows){
       body+=`<tr><td class="lblc">${l.label||acLabel(l.assetClassId)}<span class="sub-env">${e.name}</span></td>`+months.map(mo=>{const s=snapByDate(mo),v=s&&s.lines?s.lines[l.id]:undefined;return `<td class="cellv${v!=null?'':' empty'}">${v!=null?fmtCell(v):'·'}</td>`;}).join('')+`</tr>`;
     }
@@ -1166,6 +1167,16 @@ function migrate(d){
   return d;
 }
 document.getElementById('btnImport').onclick=()=>document.getElementById('fileInput').click();
+document.getElementById('btnDedup').onclick=()=>{
+  let envDup=0,lineDup=0;
+  const seenEnv=new Set(),envs=[];
+  for(const e of db.envelopes){if(seenEnv.has(e.id)){envDup++;continue;}seenEnv.add(e.id);envs.push(e);}
+  const seenL=new Set();
+  for(const e of envs){const kept=[];for(const l of e.lines){if(seenL.has(l.id)){lineDup++;continue;}seenL.add(l.id);kept.push(l);}e.lines=kept;}
+  db.envelopes=envs;
+  rebuildRefMaps();touch();navigate(currentPage);
+  toast(envDup||lineDup?`Nettoyé : ${envDup} enveloppe(s), ${lineDup} ligne(s) en double`:'Aucun doublon trouvé');
+};
 document.getElementById('fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);d=migrate(d);if(!d.envelopes)throw 0;db=d;rebuildRefMaps();navigate(currentPage);toast('Données importées');touch();}catch{toast('Fichier JSON invalide');}};r.readAsText(f);e.target.value='';};
 document.getElementById('btnExportJson').onclick=()=>{db.meta.lastUpdated=new Date().toISOString().slice(0,10);download(new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),'patrimoine.json');toast('Export JSON');};
 document.getElementById('btnExportXlsx').onclick=()=>{
