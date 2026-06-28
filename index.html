@@ -509,6 +509,7 @@ function getCss(v){return getComputedStyle(root).getPropertyValue(v).trim();}
 const SEED={
   meta:{version:3,currency:"EUR",lastUpdated:"2026-06-01"},
   ui:{hiddenClasses:["residence_principale"],allocMode:"net"},
+  projection:{years:15,saving:1500,includeRp:false,splitPct:null},
   ref:{
     assetClasses:[
       {id:"monetaire",label:"Monétaire",color:"#6F9148",defaultHorizon:"liquidite",yield:2},
@@ -898,7 +899,11 @@ function snapshotCurrent(ym){const lines={},debts={};for(const e of db.envelopes
 document.getElementById('btnSnap').onclick=()=>{const ym=prompt('Clôturer le mois (AAAA-MM) :',db.meta.lastUpdated.slice(0,7));if(!ym)return;snapshotCurrent(ym);touch();toast('Instantané '+ym+' enregistré');};
 
 /* ============ PROJECTION ============ */
-const projState={years:15,saving:1500,includeRp:false,splitPct:null};
+function ensureProjState(){
+  if(!db.projection)db.projection={years:15,saving:1500,includeRp:false,splitPct:null};
+  return db.projection;
+}
+Object.defineProperty(window,'projState',{get:ensureProjState});
 function investableClasses(){
   const c=compute();
   return db.ref.assetClasses.map(a=>a.id).filter(k=>k!=='residence_principale'&&(c.byClass[k]||0)>0);
@@ -967,7 +972,7 @@ function renderProjection(){
   document.getElementById('projYearsLbl').textContent=projState.years+' ans';
   document.getElementById('projYears').value=projState.years;
   document.getElementById('projSaving').value=projState.saving;
-  document.querySelectorAll('#projRpSeg button').forEach(b=>{b.classList.toggle('on',(b.dataset.rp==='1')===projState.includeRp);b.onclick=()=>{projState.includeRp=b.dataset.rp==='1';renderProjection();};});
+  document.querySelectorAll('#projRpSeg button').forEach(b=>{b.classList.toggle('on',(b.dataset.rp==='1')===projState.includeRp);b.onclick=()=>{projState.includeRp=b.dataset.rp==='1';renderProjection();touch();};});
   renderSplit();
   const p=computeProjection();
   drawProjChart(p);renderProjKpis(p);renderProjTable(p);
@@ -975,8 +980,8 @@ function renderProjection(){
 function renderSplit(){
   const box=document.getElementById('splitBox');const keys=investableClasses();
   box.innerHTML=keys.map(k=>`<div class="split-row"><span class="nm"><span class="sw" style="background:${acColor(k)}"></span>${acLabel(k)}</span><input type="range" min="0" max="100" step="1" data-k="${k}" value="${+projState.splitPct[k]||0}"><span class="pct"><input type="number" min="0" max="100" step="0.1" data-kn="${k}" value="${+projState.splitPct[k]||0}"> %</span></div>`).join('');
-  box.querySelectorAll('input[type=range]').forEach(el=>el.oninput=()=>{projState.splitPct[el.dataset.k]=+el.value;syncSplitInputs();const p=computeProjection();drawProjChart(p);renderProjKpis(p);renderProjTable(p);});
-  box.querySelectorAll('input[data-kn]').forEach(el=>el.onchange=()=>{projState.splitPct[el.dataset.kn]=parseFloat(el.value)||0;renderSplit();const p=computeProjection();drawProjChart(p);renderProjKpis(p);renderProjTable(p);});
+  box.querySelectorAll('input[type=range]').forEach(el=>el.oninput=()=>{projState.splitPct[el.dataset.k]=+el.value;syncSplitInputs();const p=computeProjection();drawProjChart(p);renderProjKpis(p);renderProjTable(p);touch();});
+  box.querySelectorAll('input[data-kn]').forEach(el=>el.onchange=()=>{projState.splitPct[el.dataset.kn]=parseFloat(el.value)||0;renderSplit();const p=computeProjection();drawProjChart(p);renderProjKpis(p);renderProjTable(p);touch();});
   updateSplitSum();
 }
 function syncSplitInputs(){
@@ -1186,6 +1191,7 @@ function migrate(d){
   // purge des valeurs nulles dans les snapshots (évitent d'afficher des lignes vides)
   d.snapshots.forEach(s=>{if(s.lines){for(const k in s.lines)if((+s.lines[k]||0)===0)delete s.lines[k];}});
   d.ui=d.ui||{hiddenClasses:["residence_principale"]};d.ui.hiddenClasses=d.ui.hiddenClasses||[];d.ui.allocMode=d.ui.allocMode||"net";
+  d.projection=d.projection||{years:15,saving:1500,includeRp:false,splitPct:null};
   return d;
 }
 document.getElementById('btnImport').onclick=()=>document.getElementById('fileInput').click();
@@ -1345,9 +1351,9 @@ function initSheet(){
 }
 
 /* ============ INIT ============ */
-document.getElementById('projYears').oninput=e=>{projState.years=+e.target.value;document.getElementById('projYearsLbl').textContent=projState.years+' ans';renderProjection();};
-document.getElementById('projSaving').oninput=e=>{projState.saving=parseFloat(e.target.value)||0;renderProjection();};
-document.getElementById('splitReset').onclick=()=>{initSplit();renderProjection();toast('Répartition alignée sur l\'allocation actuelle');};
+document.getElementById('projYears').oninput=e=>{projState.years=+e.target.value;document.getElementById('projYearsLbl').textContent=projState.years+' ans';renderProjection();touch();};
+document.getElementById('projSaving').oninput=e=>{projState.saving=parseFloat(e.target.value)||0;renderProjection();touch();};
+document.getElementById('splitReset').onclick=()=>{initSplit();renderProjection();touch();toast('Répartition alignée sur l\'allocation actuelle');};
 document.getElementById('histSnap').onclick=()=>{const ym=prompt('Clôturer le mois (AAAA-MM) :',db.meta.lastUpdated.slice(0,7));if(!ym)return;snapshotCurrent(ym);renderHistorique();touch();toast('Instantané '+ym+' enregistré');};
 document.getElementById('histExport').onclick=exportHistoryCsv;
 document.getElementById('histImport').onclick=()=>document.getElementById('histCsvInput').click();
