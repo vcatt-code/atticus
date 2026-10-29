@@ -1461,17 +1461,47 @@ async function bootDrive(){
   setSaveBadge('saved','Synchronisé');
   revealApp();
 }
-function startBoot(){
+async function trySilentConnect(){
+  // Tente de récupérer un token SANS popup (possible si l'utilisateur a déjà autorisé l'app).
+  // Si Google exige une interaction, on retombe sur le bouton manuel.
+  try{
+    if(!window.google?.accounts?.oauth2)await loadScript('https://accounts.google.com/gsi/client');
+  }catch(e){return false;}
+  return new Promise(resolve=>{
+    let done=false;
+    const client=google.accounts.oauth2.initTokenClient({
+      client_id:DRIVE_CONFIG.clientId,
+      scope:DRIVE_CONFIG.scope,
+      prompt:'',           // '' = pas de ré-affichage du consentement si déjà accordé
+      callback:async resp=>{
+        if(done)return;done=true;
+        if(resp&&resp.access_token){
+          driveToken=resp.access_token;
+          try{await bootDrive();resolve(true);}catch(e){resolve(false);}
+        }else{resolve(false);}
+      },
+      error_callback:()=>{if(!done){done=true;resolve(false);}}
+    });
+    try{client.requestAccessToken();}catch(e){if(!done){done=true;resolve(false);}}
+    // garde-fou : si rien ne revient vite (popup silencieux impossible), on n'attend pas indéfiniment
+    setTimeout(()=>{if(!done){done=true;resolve(false);}},3500);
+  });
+}
+async function startBoot(){
   if(!DRIVE_CONFIG.clientId){
     bootMsg('Synchronisation Drive non configurée.');
     showBootChoice('Renseigne ton identifiant Google (DRIVE_CONFIG.clientId) pour activer la synchro.');
     document.getElementById('bootConnect').classList.add('hidden');
-  }else{
-    // on NE lance PAS le popup automatiquement (bloqué par les navigateurs) : on attend un clic
-    bootMsg('Connecte-toi à Google Drive pour charger tes données.');
-    showBootChoice('Au premier accès, Google affiche « Application non vérifiée » : Paramètres avancés → Continuer.');
-    document.getElementById('bootConnect').classList.remove('hidden');
+    return;
   }
+  // 1) tentative de reconnexion silencieuse (charge tes données sans clic)
+  bootMsg('Reconnexion à Google Drive…');
+  const ok=await trySilentConnect();
+  if(ok)return; // bootDrive a déjà révélé l'app avec tes données à jour
+  // 2) sinon, on demande un clic (popup forcément manuel)
+  bootMsg('Connecte-toi à Google Drive pour charger tes données.');
+  showBootChoice('Au premier accès, Google affiche « Application non vérifiée » : Paramètres avancés → Continuer.');
+  document.getElementById('bootConnect').classList.remove('hidden');
 }
 document.getElementById('bootConnect').onclick=()=>{document.getElementById('bootActions').classList.add('hidden');document.getElementById('bootNote').classList.add('hidden');document.getElementById('bootSpin').classList.remove('hidden');bootMsg('Ouverture de la fenêtre Google…');tokenThen(bootDrive);};
 document.getElementById('bootLocal').onclick=()=>revealApp();
